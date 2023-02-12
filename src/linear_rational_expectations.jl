@@ -118,7 +118,7 @@ function LinearGsSolverWs(ids::Indices)
     de_order = n_forward(ids) + n_back
     d = zeros(de_order, de_order)
     e = similar(d)
-    solver_ws = GsSolverWs(d, n_back)
+    solver_ws = GSSolverWs(d, n_back)
     return LinearGsSolverWs(solver_ws, ids, d, e)
 end
 
@@ -145,7 +145,7 @@ function copy_jacobian!(ws::LinearGsSolverWs,
     return ws.d, ws.e
 end
 
-solve!(ws::LinearGsSolverWs, crit) = gs_solver!(ws.solver_ws, ws.d, ws.e, n_backward(ws.ids), crit)
+PolynomialMatrixEquations.solve!(ws::LinearGsSolverWs, crit) = PolynomialMatrixEquations.solve!(ws.solver_ws, ws.d, ws.e, n_backward(ws.ids), crit)
 
 function solve_g1!(results, ws::LinearGsSolverWs, options)
     ids = ws.ids
@@ -154,7 +154,7 @@ function solve_g1!(results, ws::LinearGsSolverWs, options)
     back_r  = 1:n_back
     pur_for = ids.purely_forward
     try
-        solve!(ws, options.generalized_schur.criterium)
+        PolynomialMatrixEquations.solve!(ws, options.generalized_schur.criterium)
     catch e
         resize!(results.eigenvalues, length(ws.solver_ws.schurws.eigen_values))
         copy!(results.eigenvalues, ws.solver_ws.schurws.eigen_values)
@@ -203,14 +203,14 @@ function copy_jacobian!(ws::LinearCyclicReductionWs,
     return ws.a, ws.b, ws.c
 end
 
-solve!(ws::LinearCyclicReductionWs, tol, maxiter) = cyclic_reduction!(ws.x, ws.c, ws.b, ws.a, ws.solver_ws, tol, maxiter)
+PolynomialMatrixEquations.solve!(ws::LinearCyclicReductionWs, tol, maxiter) = PolynomialMatrixEquations.solve!(ws.solver_ws, ws.x, ws.c, ws.b, ws.a; tolerance=tol, iterations=maxiter)
 
 function solve_g1!(results, ws::LinearCyclicReductionWs, options)
     ids = ws.ids
     back_r = 1:n_backward(ids)
     dyn = ids.dynamic
     back_d  = ids.backward_in_dynamic
-    solve!(ws, options.cyclic_reduction.tol, options.cyclic_reduction.maxiter)
+    PolynomialMatrixEquations.solve!(ws, options.cyclic_reduction.tol, options.cyclic_reduction.maxiter)
                       
     results.gs1[:, back_r]  .= ws.x[back_d, back_d]
     results.g1[dyn, back_r] .= ws.x[:, back_d]
