@@ -348,6 +348,7 @@ function remove_static!(jacobian::Matrix{Float64},
     geqrf!(ws.qr_ws, ws.jacobian_static)
     ormqr!(ws.qr_ws, 'L', 'T', ws.jacobian_static, jacobian)
 end
+remove_static!(jacobian, ws) = nothing
 
 """
 Computes the solution for the static variables:
@@ -389,6 +390,8 @@ function add_static!(results::LinearRationalExpectationsResults,
     end
     return results.g1, jacobian
 end
+
+add_static!(results, jacobian, ws) = results.g1, jacobian 
 
 function make_AGplusB!(AGplusB::AbstractMatrix{Float64},
                           A::AbstractMatrix{Float64},
