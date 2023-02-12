@@ -108,7 +108,7 @@ n_endogenous(i::Indices) = i.n_endogenous
 n_exogenous(i::Indices) = length(i.exogenous)
 
 mutable struct LinearGsSolverWs
-    solver_ws::GsSolverWs
+    solver_ws::GSSolverWs
     ids::Indices
     d::Matrix{Float64}
     e::Matrix{Float64}
