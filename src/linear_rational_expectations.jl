@@ -1,6 +1,7 @@
 using LinearAlgebra.LAPACK: geqrf!, ormqr!
 using FastLapackInterface
 using PolynomialMatrixEquations
+using SparseArrays
 #using SolveEyePlusMinusAkronB: EyePlusAtKronBWs, generalized_sylvester_solver!
 
 using LinearAlgebra.BLAS
@@ -173,18 +174,19 @@ end
 mutable struct LinearCyclicReductionWs
     solver_ws::CyclicReductionWs
     ids::Indices
-    a::Matrix{Float64}
+    a::SparseMatrixCSC{Float64}
     b::Matrix{Float64}
-    c::Matrix{Float64}
+    c::SparseMatrixCSC{Float64}
     x::Matrix{Float64}
 end
 function LinearCyclicReductionWs(ids::Indices)
-    n_dyn  = n_dynamic(ids)
-    a = Matrix{Float64}(undef, n_dyn, n_dyn)
-    b = similar(a)
-    c = similar(a)
-    x = similar(a)
-    solver_ws = CyclicReductionWs(n_dyn)
+    # n_dyn = n_dynamic(ids)
+    n = n_endogenous(ids)
+    a = spzeros(n, n)
+    b = Matrix{Float64}(undef, n, n)
+    c = spzeros(n, n)
+    x = similar(b)
+    solver_ws = CyclicReductionWs(n)
     return LinearCyclicReductionWs(solver_ws, ids, a, b, c, x)
 end
 
@@ -193,12 +195,11 @@ function copy_jacobian!(ws::LinearCyclicReductionWs,
     fill!(ws.a, 0.0)
     fill!(ws.b, 0.0)
     fill!(ws.c, 0.0)
-    ids = ws.ids
-    dyn_r = n_static(ids) .+ (1:n_dynamic(ids))
+    n = size(ws.a, 1) 
     @views @inbounds begin
-        ws.a[:, ids.forward_in_dynamic]  .= jacobian[dyn_r, n_backward(ids) + n_current(ids) .+ (1:n_forward(ids))]
-        ws.b[:, ids.current_in_dynamic]  .= jacobian[dyn_r, ids.current_in_dynamic_jacobian]
-        ws.c[:, ids.backward_in_dynamic] .= jacobian[dyn_r, 1:n_backward(ids)]
+        ws.c .= jacobian[:, 1:n]
+        ws.b .= jacobian[:, n+1:2n]
+        ws.a .= jacobian[:, 2n + 1:3n]
     end
     return ws.a, ws.b, ws.c
 end
@@ -212,8 +213,8 @@ function solve_g1!(results, ws::LinearCyclicReductionWs, options)
     back_d  = ids.backward_in_dynamic
     PolynomialMatrixEquations.solve!(ws, options.cyclic_reduction.tol, options.cyclic_reduction.maxiter)
                       
-    results.gs1[:, back_r]  .= ws.x[back_d, back_d]
-    results.g1[dyn, back_r] .= ws.x[:, back_d]
+    results.gs1[:, back_r]  .= ws.x[ids.backward, ids.backward]
+    results.g1[:, back_r] .= ws.x[:, ids.backward]
     return results.g1, results.gs1
 end
 
@@ -385,7 +386,7 @@ function add_static!(results::LinearRationalExpectationsResults,
         
         lu_t = LU(factorize!(ws.linsolve_static_ws, ws.b10)...)
         ldiv!(lu_t, ws.C_s)
-        
+        @show back_r
         results.g1[ids.static, back_r] .= ws.C_s
     end
     return results.g1, jacobian
@@ -440,7 +441,7 @@ function first_order_solver!(results::LinearRationalExpectationsResults,
                              jacobian::AbstractMatrix{Float64},
                              options::LinearRationalExpectationsOptions,
                              ws::LinearRationalExpectationsWs)
-                             
+                            
     remove_static!(jacobian, ws)
     ids = ws.ids
     
@@ -456,13 +457,33 @@ function first_order_solver!(results::LinearRationalExpectationsResults,
         if n_static(ids) > 0
             results.g1, jacobian = add_static!(results, jacobian, ws)
         end
-        #    A = view(jacobian, :, n_backward(ws.ids) + ws.current_nbr .+ (1:ws.forward_nbr))
-        #    B = view(jacobian, :, n_backward(ws.ids) .+ ws.ids.current)
         ws.jacobian_forward[:, forward_r] .= jacobian[:, n_back + n_cur .+ forward_r]
         ws.jacobian_current[:, current_r] .= jacobian[:, n_back .+ current_r]
-        
+       
         ws.AGplusB = make_AGplusB!(ws.AGplusB, ws.jacobian_forward, results.g1_1, ws.jacobian_current, ws)        
         solve_for_derivatives_with_respect_to_shocks!(results, jacobian, ws)
+        
+        results.hs1  .= results.g1_2[back, :]
+        results.gns1 .= results.g1_1[ids.non_backward, :]
+        results.hns1 .= results.g1_2[ids.non_backward, :]
+    end
+end
+function first_order_solver!(results::LinearRationalExpectationsResults,
+                             jacobian::SparseMatrixCSC{Float64},
+                             options::LinearRationalExpectationsOptions,
+                             ws::LinearRationalExpectationsWs)
+                             
+    ids = ws.ids
+    n = n_endogenous(ids) 
+    n_back    = n_backward(ids)
+    n_cur     = n_current(ids)
+    back      = ids.backward
+    
+    @views @inbounds begin
+        copy_jacobian!(ws.solver_ws, jacobian)
+        results.g1, results.gs1 = solve_g1!(results, ws.solver_ws, options)
+
+        results.g1_2 .= .-(ws.solver_ws.a * ws.solver_ws.x + ws.solver_ws.b) \ jacobian[:,3n+1:end]
         
         results.hs1  .= results.g1_2[back, :]
         results.gns1 .= results.g1_1[ids.non_backward, :]
