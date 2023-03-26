@@ -114,12 +114,12 @@ n_endogenous(i::Indices) = i.n_endogenous
 n_exogenous(i::Indices) = length(i.exogenous)
 
 """
-    LinearGSSolverWs
+    LinearGSWs
 
 Workspace used when solving systems with a dense representation of the jacobian. Uses Generalized Schur Decomposition when performing the linear solve.
 Can be constructed with an [`Indices`](@ref).
 """
-mutable struct LinearGSSolverWs
+mutable struct LinearGSWs
     solver_ws::GSSolverWs
     ids::Indices
     d::Matrix{Float64}
@@ -141,7 +141,7 @@ mutable struct LinearGSSolverWs
     linsolve_static_ws::LUWs
     AGplusB_linsolve_ws::LUWs
 end
-function LinearGSSolverWs(ids::Indices)
+function LinearGSWs(ids::Indices)
     n_back   = n_backward(ids)
     de_order = n_forward(ids) + n_back
     
@@ -180,7 +180,7 @@ function LinearGSSolverWs(ids::Indices)
     AGplusB = Matrix{Float64}(undef, n_end, n_end)
     AGplusB_linsolve_ws = LUWs(n_end)
     
-    return LinearGSSolverWs(solver_ws, ids, d, e, jacobian_static, qr_ws,  A_s, C_s, Gy_forward, Gy_dynamic, 
+    return LinearGSWs(solver_ws, ids, d, e, jacobian_static, qr_ws,  A_s, C_s, Gy_forward, Gy_dynamic, 
         temp, AGplusB_backward, jacobian_forward, jacobian_current, b10, b11, AGplusB,
         linsolve_static_ws, AGplusB_linsolve_ws)
 end
@@ -211,7 +211,7 @@ function LinearCRWs(ids::Indices)
 end
 
 LinearRationalExpectationsWs(algo::String, ids::Indices) = 
-    algo == "GS" ? LinearGSSolverWs(ids) : LinearCRWs(ids)
+    algo == "GS" ? LinearGSWs(ids) : LinearCRWs(ids)
 
 LinearRationalExpectationsWs(algo::String, args...) = 
     LinearRationalExpectationsWs(algo, Indices(args...))
@@ -227,11 +227,11 @@ Base.@kwdef struct CROptions
 end
 
 """
-    GeneralizedSchurOptions
+    GSOptions
 
 Stores the options used during linear solving of dense jacobians with [`LinearGSSolverWs`](@ref).
 """
-Base.@kwdef struct GeneralizedSchurOptions
+Base.@kwdef struct GSOptions
     # Near unit roots are considered stable roots
     criterium::Float64 = 1.0 + 1e-6
 end
@@ -243,7 +243,7 @@ Holds both [`GeneralizedSchurOptions`](@ref) and [`CROptions`](@ref).
 """
 Base.@kwdef struct LinearRationalExpectationsOptions
     cyclic_reduction::CROptions = CROptions()
-    generalized_schur::GeneralizedSchurOptions = GeneralizedSchurOptions()
+    generalized_schur::GSOptions = GSOptions()
 end
 
 """
@@ -294,7 +294,7 @@ mutable struct LinearRationalExpectationsResults
     end
 end
 
-function copy_jacobian!(ws::LinearGSSolverWs,
+function copy_jacobian!(ws::LinearGSWs,
                         jacobian::AbstractMatrix{Float64})
     fill!(ws.d, 0.0)
     fill!(ws.e, 0.0)
@@ -333,7 +333,7 @@ Removes a subset of variables (columns) and rows by QR decomposition.
 `ws`: on exit contains the triangular part conrresponding to static variables
 """
 function remove_static!(jacobian::Matrix{Float64},
-                        ws::LinearGSSolverWs)
+                        ws::LinearGSWs)
     ws.jacobian_static .= view(jacobian, :, ws.ids.current_in_static_jacobian)
     geqrf!(ws.qr_ws, ws.jacobian_static)
     ormqr!(ws.qr_ws, 'L', 'T', ws.jacobian_static, jacobian)
@@ -349,7 +349,7 @@ G_{y,static} = -B_{s,s}^{-1}(A_s G{y,fwrd} Gs + B_{s,d} G_{y,dynamic} + C_s)
 """ 
 function add_static!(results::LinearRationalExpectationsResults,
                      jacobian::Matrix{Float64},
-                     ws::LinearGSSolverWs)
+                     ws::LinearGSWs)
     ids = ws.ids
     @views @inbounds begin
         # static rows are at the top of the QR transformed Jacobian matrix
@@ -388,7 +388,7 @@ function make_AGplusB!(AGplusB::AbstractMatrix{Float64},
                           A::AbstractMatrix{Float64},
                           G::AbstractMatrix{Float64},
                           B::AbstractMatrix{Float64},
-                          ws::LinearGSSolverWs)
+                          ws::LinearGSWs)
                           
     fill!(AGplusB, 0.0)
     ids = ws.ids
@@ -405,7 +405,7 @@ end
 
 function solve_for_derivatives_with_respect_to_shocks!(results::LinearRationalExpectationsResults,
                                                        jacobian::AbstractMatrix{Float64},
-                                                       ws::LinearGSSolverWs)
+                                                       ws::LinearGSWs)
     #=
     if model.lagged_exogenous_nbr > 0
         f6 = view(jacobian,:,model.i_lagged_exogenous)
@@ -434,7 +434,7 @@ end
 Solve the linear rational expectation system.
 See [Dynare working paper](https://www.dynare.org/wp-repo/dynarewp002.pdf) for more info.
 """
-function solve!(results::LinearRationalExpectationsResults, jacobian::Matrix, options, ws::LinearGSSolverWs)
+function solve!(results::LinearRationalExpectationsResults, jacobian::Matrix, options, ws::LinearGSWs)
     
     ids       = ws.ids
     back      = ids.backward
