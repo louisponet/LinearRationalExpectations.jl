@@ -56,11 +56,11 @@ struct VarianceWs
     Σ_ns_ns::Matrix{Float64}
     stationary_variables::Vector{Bool}
     nonstationary_ws::Vector{NonstationaryVarianceWs}
-    lre_ws::LinearRationalExpectationsWs
+    lre_ws::Union{LinearCyclicReductionWs, LinearGsSolverWs}
     lyapd_ws::LyapdWs
 end
 function VarianceWs(var_nbr::Int, lyapd_ws::LyapdWs,
-                    shock_nbr::Int, lre_ws::LinearRationalExpectationsWs)
+                    shock_nbr::Int, lre_ws::Union{LinearCyclicReductionWs, LinearGsSolverWs})
     state_nbr = size(lyapd_ws.AA, 1)
     nonstate_nbr = var_nbr - state_nbr
     B1S = Matrix{Float64}(undef, state_nbr, shock_nbr)
@@ -77,7 +77,7 @@ function VarianceWs(var_nbr::Int, lyapd_ws::LyapdWs,
         nonstationary_ws,
         lre_ws, lyapd_ws)
 end
-VarianceWs(var_nbr::Int, state_nbr::Int, shock_nbr::Int, lre_ws::LinearRationalExpectationsWs) = 
+VarianceWs(var_nbr::Int, state_nbr::Int, shock_nbr::Int, lre_ws::Union{LinearCyclicReductionWs, LinearGsSolverWs}) = 
     VarianceWs(var_nbr, LyapdWs(state_nbr), shock_nbr, lre_ws)
 
 function make_stationary_variance!(Σy::Matrix{Float64},
@@ -471,7 +471,7 @@ function variance_decomposition!(
     variance::AbstractVector{<:T},
     work1::AbstractMatrix{<:T},
     work2::AbstractMatrix{<:T},
-    lre_variance_ws::LinearRationalExpectations.VarianceWs) where T
+    lre_variance_ws::VarianceWs) where T
     
     nx = size(Σe, 1)
     # force Σe to be positive definite
@@ -494,7 +494,7 @@ function variance_decomposition!(
 end
 
 function variance_decomposition(LREresults::LinearRationalExpectationsResults,
-                                LREws::LinearRationalExpectationsWs,
+                                LREws::Union{LinearCyclicReductionWs, LinearGsSolverWs},
                                 Σe::Matrix{Float64},
                                 endogenous_nbr::Int,
                                 exogenous_nbr::Int,
