@@ -378,7 +378,6 @@ function add_static!(results::LinearRationalExpectationsResults,
         
         lu_t = LU(factorize!(ws.linsolve_static_ws, ws.b10)...)
         ldiv!(lu_t, ws.C_s)
-        @show back_r
         results.g1[ids.static, back_r] .= ws.C_s
     end
     return results.g1, jacobian
