@@ -451,7 +451,7 @@ function solve!(results::LinearRationalExpectationsResults, jacobian::Matrix, op
     copy_jacobian!(ws, jacobian)
     
     try
-        PolynomialMatrixEquations.solve!(ws.solver_ws, ws.d, ws.e, n_back, options.generalized_schur.criterium)
+        PolynomialMatrixEquations.solve!(ws.solver_ws, ws.d, ws.e, options.generalized_schur.criterium)
     finally
         resize!(results.eigenvalues, length(ws.solver_ws.schurws.eigen_values))
         copy!(results.eigenvalues, ws.solver_ws.schurws.eigen_values)
