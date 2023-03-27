@@ -2,7 +2,6 @@ using Random
 using LinearRationalExpectations: n_backward, n_forward, n_both, n_static, n_dynamic, n_current, n_exogenous
 using LinearRationalExpectations.SparseArrays
 
-
 using DelimitedFiles
 
 const LRE = LinearRationalExpectations
@@ -60,9 +59,9 @@ end
 
         LRE.solve!(results, sparse(jacobian), options, ws)
 
-        @test results_gs.g1 ≈ results.g1
-        @test results_gs.gs1 ≈ results.gs1
-        @test results_gs.hs1 ≈ results.hs1
+        @test results_gs.g1   ≈ results.g1
+        @test results_gs.gs1  ≈ results.gs1
+        @test results_gs.hs1  ≈ results.hs1
         @test results_gs.gns1 ≈ results.gns1
         @test results_gs.hns1 ≈ results.hns1
     end    
