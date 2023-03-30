@@ -197,7 +197,6 @@ mutable struct LinearCRWs
     a::SparseMatrixCSC{Float64}
     b::Matrix{Float64}
     c::SparseMatrixCSC{Float64}
-    x::Matrix{Float64}
 end
 
 function LinearCRWs(ids::Indices)
@@ -205,9 +204,8 @@ function LinearCRWs(ids::Indices)
     a = spzeros(n, n)
     b = Matrix{Float64}(undef, n, n)
     c = spzeros(n, n)
-    x = similar(b)
-    solver_ws = CRSolverWs(n)
-    return LinearCRWs(solver_ws, ids, a, b, c, x)
+    solver_ws = CRSolverWs(a)
+    return LinearCRWs(solver_ws, ids, a, b, c)
 end
 
 LinearRationalExpectationsWs(algo::String, ids::Indices) = 
@@ -493,11 +491,11 @@ function solve!(results::LinearRationalExpectationsResults, jacobian::SparseMatr
         ws.b .= jacobian[:, n+1:2n]
         ws.c .= jacobian[:, 1:n]
         
-        PolynomialMatrixEquations.solve!(ws.solver_ws, ws.x, ws.c, ws.b, ws.a; tolerance=options.cyclic_reduction.tol, iterations=options.cyclic_reduction.maxiter)
+        PolynomialMatrixEquations.solve!(ws.solver_ws,  ws.c, ws.b, ws.a; tolerance=options.cyclic_reduction.tol, iterations=options.cyclic_reduction.maxiter)
         
-        results.gs1[:, back_r] .= ws.x[ids.backward, ids.backward]
-        results.g1[:, back_r]  .= ws.x[:, ids.backward]
-        results.g1_2           .= .-(ws.a * ws.x + ws.b) \ jacobian[:,3n+1:end]
+        results.gs1[:, back_r] .= ws.solver_ws.x[ids.backward, ids.backward]
+        results.g1[:, back_r]  .= ws.solver_ws.x[:, ids.backward]
+        results.g1_2           .= .-(ws.a * ws.solver_ws.x + ws.b) \ jacobian[:,3n+1:end]
     end
     
     fill_results!(results, ids)
