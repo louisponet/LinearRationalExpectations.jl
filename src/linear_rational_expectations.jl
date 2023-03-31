@@ -1,6 +1,8 @@
 using LinearAlgebra.LAPACK: geqrf!, ormqr!
 using FastLapackInterface
 using PolynomialMatrixEquations
+const PME = PolynomialMatrixEquations
+using PolynomialMatrixEquations: GSSolverWs, CRSolverWs
 using SparseArrays
 #using SolveEyePlusMinusAkronB: EyePlusAtKronBWs, generalized_sylvester_solver!
 
@@ -449,7 +451,7 @@ function solve!(results::LinearRationalExpectationsResults, jacobian::Matrix, op
     copy_jacobian!(ws, jacobian)
     
     try
-        PolynomialMatrixEquations.solve!(ws.solver_ws, ws.d, ws.e, options.generalized_schur.criterium)
+        PME.solve!(ws.solver_ws, ws.d, ws.e; tolerance= 1-options.generalized_schur.criterium)
     finally
         resize!(results.eigenvalues, length(ws.solver_ws.schurws.eigen_values))
         copy!(results.eigenvalues, ws.solver_ws.schurws.eigen_values)
@@ -491,7 +493,7 @@ function solve!(results::LinearRationalExpectationsResults, jacobian::SparseMatr
         ws.b .= jacobian[:, n+1:2n]
         ws.c .= jacobian[:, 1:n]
         
-        PolynomialMatrixEquations.solve!(ws.solver_ws,  ws.c, ws.b, ws.a; tolerance=options.cyclic_reduction.tol, iterations=options.cyclic_reduction.maxiter)
+        PME.solve!(ws.solver_ws,  ws.c, ws.b, ws.a; tolerance=options.cyclic_reduction.tol, max_iterations=options.cyclic_reduction.maxiter)
         
         results.gs1[:, back_r] .= ws.solver_ws.x[ids.backward, ids.backward]
         results.g1[:, back_r]  .= ws.solver_ws.x[:, ids.backward]
